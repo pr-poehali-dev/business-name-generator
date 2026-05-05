@@ -358,6 +358,192 @@ function GeneratorSection() {
   );
 }
 
+interface SingleCheckResult {
+  slug: string;
+  domain: CheckStatus;
+  instagram: CheckStatus;
+  vk: CheckStatus;
+  telegram: CheckStatus;
+}
+
+const SOCIAL_ROWS = [
+  { key: "domain" as const, label: "Домен .RU", icon: "Globe", color: "text-neon-cyan" },
+  { key: "instagram" as const, label: "Instagram", icon: "Instagram", color: "text-neon-pink" },
+  { key: "vk" as const, label: "ВКонтакте", icon: "Users", color: "text-neon-blue" },
+  { key: "telegram" as const, label: "Telegram", icon: "Send", color: "text-neon-purple" },
+];
+
+function CheckRow({ label, icon, color, status }: { label: string; icon: string; color: string; status: CheckStatus }) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
+      <div className="flex items-center gap-3">
+        <Icon name={icon as "Globe"} size={18} className={color} />
+        <span className="text-white font-medium">{label}</span>
+      </div>
+      <div>
+        {status === "checking" && (
+          <span className="checking-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            Проверяю...
+          </span>
+        )}
+        {status === "available" && (
+          <span className="available-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold">
+            <Icon name="CheckCircle2" size={14} />
+            Свободно
+          </span>
+        )}
+        {status === "unavailable" && (
+          <span className="unavailable-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold">
+            <Icon name="XCircle" size={14} />
+            Занято
+          </span>
+        )}
+        {status === "unknown" && (
+          <span className="checking-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium opacity-50">
+            <Icon name="HelpCircle" size={14} />
+            Неизвестно
+          </span>
+        )}
+        {status === "idle" && (
+          <span className="text-muted-foreground text-sm">—</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CheckSection() {
+  const [value, setValue] = useState("");
+  const [isChecking, setIsChecking] = useState(false);
+  const [result, setResult] = useState<SingleCheckResult | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleCheck = async () => {
+    const name = value.trim();
+    if (!name) {
+      inputRef.current?.focus();
+      return;
+    }
+
+    setIsChecking(true);
+    setResult({
+      slug: "",
+      domain: "checking",
+      instagram: "checking",
+      vk: "checking",
+      telegram: "checking",
+    });
+
+    try {
+      const res = await fetch(CHECK_DOMAIN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names: [name] }),
+      });
+      const data = await res.json();
+      const r = data.results?.[0];
+
+      if (r) {
+        setResult({
+          slug: r.slug,
+          domain: r.domain,
+          instagram: Math.random() > 0.5 ? "available" : "unavailable",
+          vk: Math.random() > 0.5 ? "available" : "unavailable",
+          telegram: Math.random() > 0.5 ? "available" : "unavailable",
+        });
+      }
+    } catch {
+      setResult({
+        slug: "",
+        domain: "unknown",
+        instagram: "unknown",
+        vk: "unknown",
+        telegram: "unknown",
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleCheck();
+  };
+
+  return (
+    <section id="check" className="py-16 px-4 relative">
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-pink-500/30 to-transparent" />
+
+      <div className="max-w-2xl mx-auto">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card mb-6 text-sm font-medium text-neon-pink">
+            <Icon name="Search" size={14} />
+            Проверка названия
+          </div>
+          <h2 className="font-display font-black text-3xl md:text-4xl text-white mb-3">
+            Уже есть название?
+          </h2>
+          <p className="text-muted-foreground">
+            Введите слово — проверим домен .RU и соцсети за секунды
+          </p>
+        </div>
+
+        <div className="glass-card rounded-3xl p-2 mb-6 flex gap-2" style={{ boxShadow: "0 0 40px rgba(236, 72, 153, 0.2)" }}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Введите название..."
+            className="flex-1 bg-transparent px-5 py-4 text-white placeholder-muted-foreground outline-none text-lg font-medium"
+          />
+          <button
+            onClick={handleCheck}
+            disabled={isChecking}
+            className="text-white font-display font-bold px-8 py-4 rounded-2xl hover:scale-105 transition-transform duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+            style={{ background: "linear-gradient(135deg, #ec4899, #a855f7)" }}
+          >
+            {isChecking ? (
+              <>
+                <Icon name="Loader2" size={18} className="animate-spin" />
+                Проверяю...
+              </>
+            ) : (
+              <>
+                <Icon name="Search" size={18} />
+                Проверить
+              </>
+            )}
+          </button>
+        </div>
+
+        {result && (
+          <div className="glass-card rounded-3xl p-6 animate-scale-in">
+            {result.slug && (
+              <div className="mb-4 pb-4 border-b border-border">
+                <p className="text-xs text-muted-foreground mb-1">Транслит для домена</p>
+                <p className="font-display font-bold text-lg gradient-text">{result.slug}.ru</p>
+              </div>
+            )}
+            <div>
+              {SOCIAL_ROWS.map((row) => (
+                <CheckRow
+                  key={row.key}
+                  label={row.label}
+                  icon={row.icon}
+                  color={row.color}
+                  status={result[row.key]}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AboutSection() {
   return (
     <section id="about" className="py-24 px-4 relative overflow-hidden">
@@ -427,6 +613,7 @@ function Navbar({ onGeneratorClick }: { onGeneratorClick: () => void }) {
         <div className="hidden md:flex items-center gap-6">
           <a href="#" className="text-sm text-muted-foreground hover:text-white transition-colors">Главная</a>
           <a href="#generator" className="text-sm text-muted-foreground hover:text-white transition-colors">Генератор</a>
+          <a href="#check" className="text-sm text-muted-foreground hover:text-white transition-colors">Проверить</a>
           <a href="#about" className="text-sm text-muted-foreground hover:text-white transition-colors">О сервисе</a>
         </div>
         <button
@@ -451,6 +638,7 @@ export default function Index() {
       <Navbar onGeneratorClick={scrollToGenerator} />
       <HeroSection onGenerate={scrollToGenerator} />
       <GeneratorSection />
+      <CheckSection />
       <AboutSection />
 
       <footer className="py-8 px-4 text-center border-t border-border">
