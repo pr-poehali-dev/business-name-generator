@@ -222,31 +222,44 @@ function GeneratorSection() {
     setIsGenerating(false);
     setGenerated(true);
 
-    try {
-      const res = await fetch(CHECK_DOMAIN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names: picked }),
-      });
-      const data = await res.json();
-
-      if (data.results) {
-        setResults(
-          data.results.map((r: { name: string; slug: string; domain: CheckStatus }) => ({
-            name: r.name,
-            slug: r.slug,
-            domain: r.domain,
-            instagram: Math.random() > 0.5 ? "available" : "unavailable",
-            vk: Math.random() > 0.5 ? "available" : "unavailable",
-            telegram: Math.random() > 0.5 ? "available" : "unavailable",
-          }))
+    // Проверяем каждое название параллельно — карточки обновляются по мере готовности
+    const checkOne = async (name: string, index: number) => {
+      try {
+        const res = await fetch(CHECK_DOMAIN_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ names: [name] }),
+        });
+        const data = await res.json();
+        const r = data.results?.[0];
+        if (r) {
+          setResults((prev) =>
+            prev.map((item, i) =>
+              i === index
+                ? {
+                    ...item,
+                    slug: r.slug,
+                    domain: r.domain as CheckStatus,
+                    instagram: Math.random() > 0.5 ? "available" : "unavailable",
+                    vk: Math.random() > 0.5 ? "available" : "unavailable",
+                    telegram: Math.random() > 0.5 ? "available" : "unavailable",
+                  }
+                : item
+            )
+          );
+        }
+      } catch {
+        setResults((prev) =>
+          prev.map((item, i) =>
+            i === index
+              ? { ...item, domain: "unknown" as CheckStatus, instagram: "unknown" as CheckStatus, vk: "unknown" as CheckStatus, telegram: "unknown" as CheckStatus }
+              : item
+          )
         );
       }
-    } catch {
-      setResults((prev) =>
-        prev.map((r) => ({ ...r, domain: "unknown" as CheckStatus, instagram: "unknown" as CheckStatus, vk: "unknown" as CheckStatus, telegram: "unknown" as CheckStatus }))
-      );
-    }
+    };
+
+    picked.forEach((name, index) => checkOne(name, index));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

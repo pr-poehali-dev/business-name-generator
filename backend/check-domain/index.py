@@ -1,10 +1,10 @@
 import json
-import socket
 import re
-import os
+import urllib.request
+import urllib.error
 
 def handler(event: dict, context) -> dict:
-    """Проверяет доступность домена .RU через WHOIS и никнеймов в соцсетях."""
+    """Проверяет доступность доменов .RU через DNS-over-HTTPS (Google DoH)."""
 
     if event.get('httpMethod') == 'OPTIONS':
         return {
@@ -30,8 +30,14 @@ def handler(event: dict, context) -> dict:
 
     results = []
     for name in names[:10]:
-        slug = re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', name).lower()
-        domain_status = check_domain_whois(slug)
+        clean = re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', name).lower()
+        if re.search(r'[а-яА-Я]', clean):
+            slug = transliterate(clean)
+        else:
+            slug = clean
+
+        domain_status = check_domain_doh(slug)
+        print(f"[CHECK] '{name}' -> '{slug}.ru' -> {domain_status}")
         results.append({
             'name': name,
             'slug': slug,
@@ -45,36 +51,45 @@ def handler(event: dict, context) -> dict:
     }
 
 
-def check_domain_whois(name: str) -> str:
-    """Проверяет домен через WHOIS-сокет ru-center."""
-    try:
-        # Транслитерируем кириллицу если нужно
-        domain = transliterate(name) + '.ru'
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(5)
-        s.connect(('whois.tcinet.ru', 43))
-        s.sendall((domain + '\r\n').encode())
-
-        response = b''
-        while True:
-            chunk = s.recv(4096)
-            if not chunk:
-                break
-            response += chunk
-        s.close()
-
-        text = response.decode('utf-8', errors='ignore').lower()
-
-        if 'no entries found' in text or 'not found' in text:
-            return 'available'
-        elif 'state:' in text or 'domain:' in text:
-            return 'unavailable'
-        else:
-            return 'unknown'
-
-    except Exception:
+def check_domain_doh(slug: str) -> str:
+    """
+    DNS-over-HTTPS через Google Public DNS.
+    NS-записи есть у всех зарегистрированных .RU доменов.
+    NXDOMAIN (status=3) = домен свободен.
+    NOERROR + Answer = занят.
+    """
+    if not slug:
         return 'unknown'
+
+    domain = slug + '.ru'
+
+    for dns_type in ['NS', 'A']:
+        url = f'https://dns.google/resolve?name={domain}&type={dns_type}'
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    'Accept': 'application/dns-json',
+                    'User-Agent': 'NameChecker/1.0',
+                },
+            )
+            resp = urllib.request.urlopen(req, timeout=8)
+            data = json.loads(resp.read().decode())
+            status = data.get('Status', -1)
+            answers = data.get('Answer', [])
+
+            print(f"[DoH] {domain} type={dns_type} status={status} answers={len(answers)}")
+
+            if status == 0 and answers:
+                return 'unavailable'
+            elif status == 3:
+                return 'available'
+
+        except Exception as e:
+            print(f"[DoH] error {domain} type={dns_type}: {e}")
+            continue
+
+    return 'unknown'
 
 
 TRANSLIT_MAP = {

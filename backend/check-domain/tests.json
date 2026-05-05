@@ -4,9 +4,9 @@
       "name": "Check domain availability",
       "method": "POST",
       "path": "/",
-      "body": {"names": ["Нексора"]},
+      "body": {"names": ["yandex", "nexoraxyz9182"]},
       "expectedStatus": 200,
-      "expectedBody": {"results": [{"name": "Нексора"}]},
+      "expectedBody": {"results": [{"name": "yandex", "domain": "unavailable"}, {"name": "nexoraxyz9182", "domain": "available"}]},
       "bodyMatcher": "partial"
     }
   ]
