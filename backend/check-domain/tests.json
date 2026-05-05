@@ -1,0 +1,13 @@
+{
+  "tests": [
+    {
+      "name": "Check domain availability",
+      "method": "POST",
+      "path": "/",
+      "body": {"names": ["Нексора"]},
+      "expectedStatus": 200,
+      "expectedBody": {"results": [{"name": "Нексора"}]},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

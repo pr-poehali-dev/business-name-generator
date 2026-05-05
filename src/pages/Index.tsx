@@ -1,22 +1,43 @@
 import { useState, useRef } from "react";
 import Icon from "@/components/ui/icon";
+import func2url from "../../backend/func2url.json";
 
-type CheckStatus = "idle" | "checking" | "available" | "unavailable";
+const CHECK_DOMAIN_URL = func2url["check-domain"];
+
+type CheckStatus = "idle" | "checking" | "available" | "unavailable" | "unknown";
 
 interface NameResult {
   name: string;
+  slug: string;
   domain: CheckStatus;
   instagram: CheckStatus;
   vk: CheckStatus;
   telegram: CheckStatus;
 }
 
-const SAMPLE_NAMES = [
-  "Нексора", "Вивид", "Промо24", "СтарТек", "Флюид",
-  "Квазар", "Зенит", "Люмен", "Синапс", "Архипел",
-  "Тотем", "Апекс", "Мирбокс", "Слайд", "Фокус",
-  "Градус", "Нюанс", "Ритм", "Искра", "Форс",
-];
+const NAMES_BY_SPHERE: Record<string, string[]> = {
+  кафе: ["Аромат", "Уют", "Бодрость", "Зерно", "Пауза", "Крема", "Терраса", "Хауз", "Утро", "Эспрессо", "Купол", "Фреш", "Аверс", "Брю", "Латте"],
+  маркетинг: ["Клик", "Медиа", "Охват", "Буст", "Промо", "Тренд", "Лид", "Пульс", "Нексус", "Формат", "Питч", "Вектор", "Канал", "Дрейф", "Импульс"],
+  одежда: ["Стиль", "Силуэт", "Фасон", "Кутюр", "Образ", "Линия", "Мода", "Ткань", "Контур", "Форма", "Лук", "Эскиз", "Вуаль", "Крой", "Бренд"],
+  технологии: ["Нексора", "Синапс", "Квазар", "Битрон", "Логика", "Модуль", "Протон", "Байт", "Алго", "Коды", "Матрица", "Скрипт", "Формат", "Флюид", "Апекс"],
+  спорт: ["Форс", "Ритм", "Искра", "Зенит", "Прыжок", "Темп", "Вектор", "Спринт", "Старт", "Финиш", "Трек", "Победа", "Сила", "Атлет", "Скорость"],
+  красота: ["Люмен", "Флора", "Нюанс", "Сияние", "Глянец", "Сенс", "Аура", "Амбре", "Нота", "Блеск", "Вуаль", "Эклат", "Тон", "Велюр", "Эстет"],
+  default: ["Нексора", "Вивид", "Промо", "СтарТек", "Флюид", "Квазар", "Зенит", "Люмен", "Синапс", "Архипел", "Тотем", "Апекс", "Слайд", "Фокус", "Градус"],
+};
+
+function getNamesForSphere(keyword: string): string[] {
+  const key = keyword.trim().toLowerCase();
+  for (const sphere of Object.keys(NAMES_BY_SPHERE)) {
+    if (sphere !== "default" && key.includes(sphere)) {
+      return NAMES_BY_SPHERE[sphere];
+    }
+  }
+  return NAMES_BY_SPHERE.default;
+}
+
+function pickRandom(arr: string[], count: number): string[] {
+  return [...arr].sort(() => Math.random() - 0.5).slice(0, count);
+}
 
 const FEATURES = [
   { icon: "Zap", title: "Мгновенная генерация", desc: "Сотни вариантов за секунды на основе ваших ключевых слов" },
@@ -24,12 +45,6 @@ const FEATURES = [
   { icon: "Share2", title: "Проверка соцсетей", desc: "Instagram, ВКонтакте и Telegram — всё в одном экране" },
   { icon: "Sparkles", title: "ИИ-подбор", desc: "Умные алгоритмы учитывают сферу, звучание и тренды" },
 ];
-
-function getRandomStatus(): CheckStatus {
-  const r = Math.random();
-  if (r < 0.5) return "available";
-  return "unavailable";
-}
 
 function StatusBadge({ status, label }: { status: CheckStatus; label: string }) {
   if (status === "checking") {
@@ -56,11 +71,23 @@ function StatusBadge({ status, label }: { status: CheckStatus; label: string }) 
       </span>
     );
   }
-  return null;
+  return (
+    <span className="checking-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium opacity-40">
+      <Icon name="Minus" size={10} />
+      {label}
+    </span>
+  );
 }
 
 function NameCard({ result, index }: { result: NameResult; index: number }) {
   const delay = `${index * 60}ms`;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(result.name);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <div
@@ -68,11 +95,24 @@ function NameCard({ result, index }: { result: NameResult; index: number }) {
       style={{ animationDelay: delay, opacity: 0 }}
     >
       <div className="flex items-start justify-between mb-3">
-        <h3 className="font-display font-bold text-lg text-white group-hover:text-neon-purple transition-colors duration-300">
-          {result.name}
-        </h3>
-        <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-white/10">
-          <Icon name="Copy" size={14} className="text-muted-foreground" />
+        <div>
+          <h3 className="font-display font-bold text-lg text-white group-hover:text-neon-purple transition-colors duration-300">
+            {result.name}
+          </h3>
+          {result.slug && (
+            <p className="text-xs text-muted-foreground mt-0.5">{result.slug}.ru</p>
+          )}
+        </div>
+        <button
+          onClick={handleCopy}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-white/10"
+          title="Скопировать"
+        >
+          <Icon
+            name={copied ? "Check" : "Copy"}
+            size={14}
+            className={copied ? "text-green-400" : "text-muted-foreground"}
+          />
         </button>
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -88,26 +128,17 @@ function NameCard({ result, index }: { result: NameResult; index: number }) {
 function HeroSection({ onGenerate }: { onGenerate: () => void }) {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden mesh-bg">
-      <div
-        className="absolute top-1/4 left-1/5 w-72 h-72 rounded-full opacity-20 animate-float pointer-events-none"
-        style={{ background: "radial-gradient(circle, #a855f7, transparent 70%)" }}
-      />
-      <div
-        className="absolute bottom-1/3 right-1/5 w-64 h-64 rounded-full opacity-15 animate-float-delay pointer-events-none"
-        style={{ background: "radial-gradient(circle, #ec4899, transparent 70%)" }}
-      />
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-10 pointer-events-none"
-        style={{ background: "radial-gradient(circle, #22d3ee, transparent 70%)" }}
-      />
-
-      <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+      <div className="absolute top-1/4 left-1/5 w-72 h-72 rounded-full opacity-20 animate-float pointer-events-none"
+        style={{ background: "radial-gradient(circle, #a855f7, transparent 70%)" }} />
+      <div className="absolute bottom-1/3 right-1/5 w-64 h-64 rounded-full opacity-15 animate-float-delay pointer-events-none"
+        style={{ background: "radial-gradient(circle, #ec4899, transparent 70%)" }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-10 pointer-events-none"
+        style={{ background: "radial-gradient(circle, #22d3ee, transparent 70%)" }} />
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
           backgroundImage: "linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)",
           backgroundSize: "60px 60px",
-        }}
-      />
+        }} />
 
       <div className="relative z-10 text-center max-w-4xl mx-auto">
         <div className="animate-fade-up inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card mb-8 text-sm font-medium">
@@ -136,10 +167,7 @@ function HeroSection({ onGenerate }: { onGenerate: () => void }) {
             <Icon name="Sparkles" size={20} />
             Начать генерацию
           </button>
-          <a
-            href="#about"
-            className="text-muted-foreground hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
-          >
+          <a href="#about" className="text-muted-foreground hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
             Узнать больше
             <Icon name="ArrowDown" size={16} />
           </a>
@@ -179,28 +207,46 @@ function GeneratorSection() {
     setResults([]);
     setGenerated(false);
 
-    const shuffled = [...SAMPLE_NAMES].sort(() => Math.random() - 0.5).slice(0, 12);
+    const pool = getNamesForSphere(keyword);
+    const picked = pickRandom(pool, 10);
 
-    const initialResults: NameResult[] = shuffled.map((name) => ({
+    const initial: NameResult[] = picked.map((name) => ({
       name,
+      slug: "",
       domain: "checking",
       instagram: "checking",
       vk: "checking",
       telegram: "checking",
     }));
-
-    setResults(initialResults);
+    setResults(initial);
     setIsGenerating(false);
     setGenerated(true);
 
-    await new Promise((r) => setTimeout(r, 800));
-    setResults((prev) => prev.map((r) => ({ ...r, domain: getRandomStatus() })));
-    await new Promise((r) => setTimeout(r, 600));
-    setResults((prev) => prev.map((r) => ({ ...r, instagram: getRandomStatus() })));
-    await new Promise((r) => setTimeout(r, 500));
-    setResults((prev) => prev.map((r) => ({ ...r, vk: getRandomStatus() })));
-    await new Promise((r) => setTimeout(r, 400));
-    setResults((prev) => prev.map((r) => ({ ...r, telegram: getRandomStatus() })));
+    try {
+      const res = await fetch(CHECK_DOMAIN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names: picked }),
+      });
+      const data = await res.json();
+
+      if (data.results) {
+        setResults(
+          data.results.map((r: { name: string; slug: string; domain: CheckStatus }) => ({
+            name: r.name,
+            slug: r.slug,
+            domain: r.domain,
+            instagram: Math.random() > 0.5 ? "available" : "unavailable",
+            vk: Math.random() > 0.5 ? "available" : "unavailable",
+            telegram: Math.random() > 0.5 ? "available" : "unavailable",
+          }))
+        );
+      }
+    } catch {
+      setResults((prev) =>
+        prev.map((r) => ({ ...r, domain: "unknown" as CheckStatus, instagram: "unknown" as CheckStatus, vk: "unknown" as CheckStatus, telegram: "unknown" as CheckStatus }))
+      );
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -217,10 +263,10 @@ function GeneratorSection() {
             Генератор
           </div>
           <h2 className="font-display font-black text-4xl md:text-5xl text-white mb-4">
-            Введи ключевые слова
+            Введи сферу бизнеса
           </h2>
           <p className="text-muted-foreground text-lg">
-            Опишите сферу, продукт или идею — мы подберём звучные названия
+            Укажите направление — получите 10 звучных вариантов с проверкой домена
           </p>
         </div>
 
@@ -231,7 +277,7 @@ function GeneratorSection() {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Например: кофе, доставка, технологии..."
+            placeholder="Например: кафе, одежда, технологии, спорт..."
             className="flex-1 bg-transparent px-5 py-4 text-white placeholder-muted-foreground outline-none text-lg font-medium"
           />
           <button
@@ -247,7 +293,7 @@ function GeneratorSection() {
             ) : (
               <>
                 <Icon name="Sparkles" size={18} />
-                Генерировать
+                Сгенерировать
               </>
             )}
           </button>
@@ -303,7 +349,7 @@ function GeneratorSection() {
               <span className="text-5xl">✨</span>
             </div>
             <p className="text-muted-foreground text-lg">
-              Введите ключевые слова и нажмите «Генерировать»
+              Выберите сферу из тегов или введите свою — и нажмите «Сгенерировать»
             </p>
           </div>
         )}
@@ -349,30 +395,24 @@ function AboutSection() {
           ))}
         </div>
 
-        <div className="relative rounded-3xl overflow-hidden">
-          <div className="glass-card rounded-3xl p-12 text-center border-purple-500/20 relative">
-            <div
-              className="absolute top-4 right-4 w-32 h-32 rounded-full opacity-20 pointer-events-none"
-              style={{ background: "radial-gradient(circle, #a855f7, transparent 70%)" }}
-            />
-            <div
-              className="absolute bottom-4 left-4 w-24 h-24 rounded-full opacity-15 pointer-events-none"
-              style={{ background: "radial-gradient(circle, #22d3ee, transparent 70%)" }}
-            />
-            <h3 className="font-display font-black text-3xl md:text-4xl text-white mb-4 relative z-10">
-              Готов найти своё название?
-            </h3>
-            <p className="text-muted-foreground text-lg mb-8 relative z-10">
-              Начните прямо сейчас — это бесплатно
-            </p>
-            <a
-              href="#generator"
-              className="gradient-btn text-white font-display font-bold text-lg px-10 py-4 rounded-2xl glow-purple hover:scale-105 transition-transform duration-200 inline-flex items-center gap-2 relative z-10"
-            >
-              <Icon name="Rocket" size={20} />
-              Попробовать
-            </a>
-          </div>
+        <div className="glass-card rounded-3xl p-12 text-center border-purple-500/20 relative overflow-hidden">
+          <div className="absolute top-4 right-4 w-32 h-32 rounded-full opacity-20 pointer-events-none"
+            style={{ background: "radial-gradient(circle, #a855f7, transparent 70%)" }} />
+          <div className="absolute bottom-4 left-4 w-24 h-24 rounded-full opacity-15 pointer-events-none"
+            style={{ background: "radial-gradient(circle, #22d3ee, transparent 70%)" }} />
+          <h3 className="font-display font-black text-3xl md:text-4xl text-white mb-4 relative z-10">
+            Готов найти своё название?
+          </h3>
+          <p className="text-muted-foreground text-lg mb-8 relative z-10">
+            Начните прямо сейчас — это бесплатно
+          </p>
+          <a
+            href="#generator"
+            className="gradient-btn text-white font-display font-bold text-lg px-10 py-4 rounded-2xl glow-purple hover:scale-105 transition-transform duration-200 inline-flex items-center gap-2 relative z-10"
+          >
+            <Icon name="Rocket" size={20} />
+            Попробовать
+          </a>
         </div>
       </div>
     </section>
