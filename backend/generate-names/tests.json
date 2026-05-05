@@ -1,0 +1,22 @@
+{
+  "tests": [
+    {
+      "name": "Generate RU cafe names",
+      "method": "POST",
+      "path": "/",
+      "body": {"sphere": "кафе", "lang": "ru", "count": 10},
+      "expectedStatus": 200,
+      "expectedBody": {"lang": "ru"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Generate EN tech names",
+      "method": "POST",
+      "path": "/",
+      "body": {"sphere": "tech", "lang": "en", "count": 10},
+      "expectedStatus": 200,
+      "expectedBody": {"lang": "en"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
